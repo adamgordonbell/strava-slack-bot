@@ -1,20 +1,37 @@
 import json
 import pulumi
 import pulumi_aws as aws
+import pulumi_docker as docker
 
-current = aws.get_caller_identity()
-region = aws.get_region()
 config = pulumi.Config()
-
 slack_bot_token = config.require_secret("slackBotToken")
 slack_channel = config.get("slackChannel") or "#bot-testing"
 
-# ECR repo for the Lambda container image
+# ECR repo
 repo = aws.ecr.Repository(
     "strava-slack-bot",
     name="strava-slack-bot",
     image_tag_mutability="MUTABLE",
     force_delete=True,
+)
+
+# Auth token for pushing to ECR
+auth_token = aws.ecr.get_authorization_token_output(registry_id=repo.registry_id)
+
+# Build and push the container image
+image = docker.Image(
+    "strava-slack-bot-image",
+    build=docker.DockerBuildArgs(
+        context="..",
+        dockerfile="../Dockerfile",
+        platform="linux/arm64",
+    ),
+    image_name=repo.repository_url,
+    registry=docker.RegistryArgs(
+        server=repo.repository_url,
+        username=auth_token.user_name,
+        password=auth_token.password,
+    ),
 )
 
 # SQS dead-letter queue
@@ -72,13 +89,11 @@ aws.iam.RolePolicy(
 )
 
 # Lambda function — container image from ECR
-image_uri = repo.repository_url.apply(lambda url: f"{url}:latest")
-
 fn = aws.lambda_.Function(
     "strava-slack-bot",
     name="strava-slack-bot",
     package_type="Image",
-    image_uri=image_uri,
+    image_uri=image.image_name,
     role=lambda_role.arn,
     timeout=30,
     memory_size=256,
