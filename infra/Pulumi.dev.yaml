@@ -1,5 +1,4 @@
+environment:
+  - adamgordonbell-org/strava-slack-bot/dev
 config:
   aws:region: us-east-1
-  strava-slack-bot:slackChannel: '#bot-testing'
-  strava-slack-bot:slackBotToken:
-    secure: AAABALQI09j9HtvfI6L7pjDxvsKPAo2199iqxiBAM2cv83CcBisEycLKJ8InAo622+0=
