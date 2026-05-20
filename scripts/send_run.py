@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["boto3"]
+# ///
 """Send a fake Strava run event to SQS for local testing."""
 import json
 import sys
@@ -22,6 +26,6 @@ if not QUEUE_URL:
     print("Usage: send_run.py <sqs-queue-url>")
     sys.exit(1)
 
-sqs = boto3.client("sqs")
+sqs = boto3.client("sqs", region_name="us-east-1")
 sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(SAMPLE_RUN))
 print("Sent:", json.dumps(SAMPLE_RUN, indent=2))

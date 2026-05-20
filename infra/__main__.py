@@ -26,7 +26,7 @@ image = docker.Image(
         dockerfile="../Dockerfile",
         platform="linux/arm64",
     ),
-    image_name=repo.repository_url,
+    image_name=repo.repository_url.apply(lambda url: f"{url}:latest"),
     registry=docker.RegistryArgs(
         server=repo.repository_url,
         username=auth_token.user_name,
@@ -95,6 +95,7 @@ fn = aws.lambda_.Function(
     package_type="Image",
     image_uri=image.image_name,
     role=lambda_role.arn,
+    architectures=["arm64"],
     timeout=30,
     memory_size=256,
     environment=aws.lambda_.FunctionEnvironmentArgs(
