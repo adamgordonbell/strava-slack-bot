@@ -1,0 +1,11 @@
+name: strava-slack-bot
+description: Strava run events to Slack via SQS + Lambda
+runtime:
+  name: python
+  options:
+    toolchain: pip
+    virtualenv: venv
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-python
