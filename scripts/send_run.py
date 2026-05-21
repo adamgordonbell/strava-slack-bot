@@ -6,7 +6,10 @@
 """Send a fake Strava run event to SQS for local testing.
 
 Usage:
-  send_run.py <queue-url> [easy|long|tempo]
+  send_run.py <queue-url> [easy|long|tempo|bad]
+
+  bad: simulates a malformed payload (missing 'activity' wrapper) to
+       trigger Lambda errors and demonstrate New Relic alerting + DLQ.
 """
 import json
 import sys
@@ -57,14 +60,22 @@ RUNS = {
 }
 
 if not QUEUE_URL:
-    print("Usage: send_run.py <sqs-queue-url> [easy|long|tempo]")
+    print("Usage: send_run.py <sqs-queue-url> [easy|long|tempo|bad]")
     sys.exit(1)
 
-if RUN_TYPE not in RUNS:
-    print(f"Unknown run type '{RUN_TYPE}'. Choose from: {', '.join(RUNS)}")
+if RUN_TYPE == "bad":
+    # Missing the 'activity' wrapper — simulates a malformed Strava webhook
+    message = {
+        "name": "Morning run",
+        "distance_km": 8.3,
+        "moving_time_min": 48,
+    }
+elif RUN_TYPE in RUNS:
+    message = {"activity": RUNS[RUN_TYPE]}
+else:
+    print(f"Unknown run type '{RUN_TYPE}'. Choose from: easy, long, tempo, bad")
     sys.exit(1)
 
-message = {"activity": RUNS[RUN_TYPE]}
 sqs = boto3.client("sqs", region_name="us-east-1")
 sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(message))
 print(f"Sent [{RUN_TYPE}]:", json.dumps(message, indent=2))

@@ -1,4 +1,4 @@
-.PHONY: config deploy send logs
+.PHONY: config deploy send send-bad logs
 
 # Read .env and push values into Pulumi config (run once, or when token changes)
 config:
@@ -15,6 +15,10 @@ deploy:
 
 send:
 	uv run scripts/send_run.py $$(cd infra && pulumi stack output queue_url) $(TYPE)
+
+# Simulate a bad Strava payload — triggers Lambda errors + DLQ for NR demo
+send-bad:
+	uv run scripts/send_run.py $$(cd infra && pulumi stack output queue_url) bad
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region us-east-1 --follow
