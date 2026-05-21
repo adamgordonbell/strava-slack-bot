@@ -24,7 +24,7 @@ cp .env.sample .env
 
 make config    # pushes .env values into Pulumi config
 make deploy    # builds container, pushes to ECR, provisions everything
-make send      # sends a test run event to the queue
+make send      # sends a test run event (TYPE=easy|long|tempo, default easy)
 make logs      # tail Lambda logs
 ```
 
@@ -59,6 +59,40 @@ Put the token in `.env` as `SLACK_BOT_TOKEN`.
     "avg_hr": 141.0
   }
 }
+```
+
+## Demo: failure scenario
+
+This is the live-stream demo flow for showing New Relic error alerting and DLQ recovery.
+
+**1. Flood the queue with bad payloads**
+
+```bash
+make flood-bad
+```
+
+Sends 5 malformed messages (missing the `activity` wrapper). The Lambda crashes on each with a `KeyError`. Because `maxReceiveCount=3`, each message retries 3 times before landing in the dead-letter queue — 15 Lambda errors total.
+
+**2. Observe in New Relic**
+
+The error spike shows up in the Lambda errors dashboard. Each failure logs the exception and stack trace.
+
+**3. Fix the handler**
+
+In `app/handler.py`, the handler assumes `body["activity"]` always exists. Add a guard:
+
+```python
+if "activity" not in body:
+    print(f"Skipping malformed message: {body}")
+    continue
+```
+
+**4. Redeploy and redrive**
+
+```bash
+make deploy    # rebuild container with the fix
+make redrive   # move DLQ messages back to the main queue
+make logs      # watch the reprocessed messages succeed
 ```
 
 ## Using Pulumi ESC instead of .env
