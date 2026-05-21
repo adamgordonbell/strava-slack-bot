@@ -1,4 +1,4 @@
 environment:
-  - adamgordonbell-org/strava-slack-bot/dev
+  - strava-slack-bot/dev
 config:
   aws:region: us-east-1
