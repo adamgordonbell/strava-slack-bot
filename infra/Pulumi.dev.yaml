@@ -1,4 +1,4 @@
 environment:
   - strava-slack-bot/dev
 config:
-  aws:region: us-east-1
+  aws:region: ca-central-1

@@ -1,8 +1,9 @@
 .PHONY: config deploy send send-bad flood-bad redrive logs
 
-QUEUE_URL = $(shell cd infra && pulumi stack output queue_url)
-DLQ_ARN   = $(shell cd infra && pulumi stack output dlq_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
-QUEUE_ARN = $(shell cd infra && pulumi stack output queue_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
+REGION    ?= ca-central-1
+QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
+DLQ_ARN    = $(shell cd infra && pulumi stack output dlq_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
+QUEUE_ARN  = $(shell cd infra && pulumi stack output queue_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
 
 # Read .env and push values into Pulumi config (run once, or when token changes)
 config:
@@ -36,8 +37,8 @@ redrive:
 	aws sqs start-message-move-task \
 		--source-arn $(DLQ_ARN) \
 		--destination-arn $(QUEUE_ARN) \
-		--region us-east-1
+		--region $(REGION)
 	@echo "Redrive started — messages will re-process shortly."
 
 logs:
-	aws logs tail /aws/lambda/strava-slack-bot --region us-east-1 --follow
+	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow

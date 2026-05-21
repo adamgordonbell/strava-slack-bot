@@ -2,11 +2,15 @@
 
 ![PulumiBot posting coaching feedback to Slack](docs/slack-demo.png)
 
-This app receives running data from your watch via a [Strava-to-SQS bridge](#setting-up-a-strava-to-sqs-bridge), feeds it to an LLM acting as a running coach, and posts the feedback to a Slack channel of your choice. Infrastructure is deployed to AWS Lambda using Pulumi, and New Relic instruments it for observability.
+Get AI coaching feedback on every run, posted to Slack automatically. Each run syncs from Strava via a webhook bridge into SQS, a Lambda function calls Claude to generate a short coaching note, and the result lands in a channel of your choice. Pulumi manages the infrastructure; New Relic instruments it for observability.
 
 ```
 Strava → [webhook bridge] → SQS → Lambda (container) → Slack
 ```
+
+> **Note:** This is the live-stream version — designed to be deployed and broken on camera.
+> For a more complete implementation from the "I Built an AI Running Coach" talk, see
+> [adamgordonbell/ai-running-coach](https://github.com/adamgordonbell/ai-running-coach).
 
 ## Prerequisites
 
@@ -20,7 +24,7 @@ Strava → [webhook bridge] → SQS → Lambda (container) → Slack
 
 ```bash
 cp .env.sample .env
-# fill in SLACK_BOT_TOKEN and SLACK_CHANNEL in .env
+# fill in SLACK_BOT_TOKEN, SLACK_CHANNEL, and ANTHROPIC_API_KEY in .env
 
 make config    # pushes .env values into Pulumi config
 make deploy    # builds container, pushes to ECR, provisions everything
@@ -52,47 +56,16 @@ Put the token in `.env` as `SLACK_BOT_TOKEN`.
   "activity": {
     "name": "Easy morning run",
     "activity_type": "Run",
+    "run_type": "easy",
     "distance_km": 8.3,
     "moving_time_min": 48,
     "pace_str": "5:47",
-    "elevation_gain_m": 62,
-    "avg_hr": 141.0
+    "elevation_gain_m": 42,
+    "avg_hr": 138.0,
+    "hr_zones": {"1": 5, "2": 78, "3": 15, "4": 2, "5": 0},
+    "splits": ["5:51", "5:49", "5:45", "5:44", "5:48", "5:50", "5:47", "5:43"]
   }
 }
-```
-
-## Demo: failure scenario
-
-This is the live-stream demo flow for showing New Relic error alerting and DLQ recovery.
-
-**1. Flood the queue with bad payloads**
-
-```bash
-make flood-bad
-```
-
-Sends 5 malformed messages (missing the `activity` wrapper). The Lambda crashes on each with a `KeyError`. Because `maxReceiveCount=3`, each message retries 3 times before landing in the dead-letter queue — 15 Lambda errors total.
-
-**2. Observe in New Relic**
-
-The error spike shows up in the Lambda errors dashboard. Each failure logs the exception and stack trace.
-
-**3. Fix the handler**
-
-In `app/handler.py`, the handler assumes `body["activity"]` always exists. Add a guard:
-
-```python
-if "activity" not in body:
-    print(f"Skipping malformed message: {body}")
-    continue
-```
-
-**4. Redeploy and redrive**
-
-```bash
-make deploy    # rebuild container with the fix
-make redrive   # move DLQ messages back to the main queue
-make logs      # watch the reprocessed messages succeed
 ```
 
 ## Using Pulumi ESC instead of .env
@@ -103,6 +76,7 @@ If you prefer to manage secrets in [Pulumi ESC](https://www.pulumi.com/docs/esc/
 esc env init <your-org>/strava-slack-bot/dev
 esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackBotToken xoxb-...
 esc env set <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackChannel your-channel
+esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:anthropicApiKey sk-ant-...
 ```
 
 Then reference it in `infra/Pulumi.dev.yaml`:
@@ -126,12 +100,12 @@ The SQS message format is documented in [SQS message shape](#sqs-message-shape).
 
 ## Going further
 
-Things to try once the basic demo is working:
-
 - **Move to Fargate** — swap the Lambda for an ECS Fargate task to handle longer-running workloads and persistent connections.
 - **Try Google Cloud Run** — port the Pulumi program to GCP using `pulumi-gcp`; the container and app code stay the same.
 - **Wire a real Strava bridge** — set up the webhook integration above so your actual runs trigger the bot automatically.
-- **Add a New Relic custom dashboard** — instrument the Lambda to emit a custom event or metric (e.g. run distance, coaching latency) and build a NR dashboard that tracks your training over time.
+- **Add a New Relic custom dashboard** — instrument the Lambda to emit a custom metric (run distance, coaching latency) and track your training over time.
+
+For the live-stream failure scenario and step-by-step walkthrough, see [TUTORIAL.md](TUTORIAL.md).
 
 ---
 

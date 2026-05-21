@@ -12,6 +12,7 @@ Usage:
        trigger Lambda errors and demonstrate New Relic alerting + DLQ.
 """
 import json
+import os
 import sys
 import boto3
 
@@ -76,6 +77,6 @@ else:
     print(f"Unknown run type '{RUN_TYPE}'. Choose from: easy, long, tempo, bad")
     sys.exit(1)
 
-sqs = boto3.client("sqs", region_name="us-east-1")
+sqs = boto3.client("sqs", region_name=os.environ.get("AWS_DEFAULT_REGION", "ca-central-1"))
 sqs.send_message(QueueUrl=QUEUE_URL, MessageBody=json.dumps(message))
 print(f"Sent [{RUN_TYPE}]:", json.dumps(message, indent=2))
