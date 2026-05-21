@@ -2,85 +2,48 @@
 
 Demo app for the Pulumi × New Relic live stream.
 
-Strava-shaped run events arrive on an SQS queue, a Lambda function processes them and posts a summary to Slack. Pulumi manages all the infrastructure. New Relic instruments the Lambda.
+Strava-shaped run events arrive on SQS, a Lambda function processes them and posts a summary to Slack. Pulumi manages the infrastructure. New Relic instruments the Lambda.
 
 ```
-SQS queue → Lambda (container on ECR) → Slack
+SQS → Lambda (container) → Slack
 ```
 
 ## Prerequisites
 
 - [Pulumi CLI](https://www.pulumi.com/docs/install/)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) (for the test script)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - AWS credentials configured
-- Docker (for building the container image)
-- A Slack bot token (`xoxb-...`) and a channel to post to
+- Docker
+- A Slack bot token — see [Setting up the Slack bot](#setting-up-the-slack-bot)
 
-## Structure
-
-```
-app/        Python Lambda handler
-infra/      Pulumi program (Python)
-scripts/    Local test helpers
-Dockerfile
-Makefile
-```
-
-## Deploy
+## Quickstart
 
 ```bash
-cd infra
-pip install -r requirements.txt   # first time only
+cp .env.sample .env
+# fill in SLACK_BOT_TOKEN and SLACK_CHANNEL in .env
+
+make config    # pushes .env values into Pulumi config
+make deploy    # builds container, pushes to ECR, provisions everything
+make send      # sends a test run event to the queue
+make logs      # tail Lambda logs
 ```
 
-### Option A — Pulumi ESC (recommended)
+## Setting up the Slack bot
 
-Create an ESC environment and set your secrets there:
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → From scratch
+2. Under **OAuth & Permissions**, add these bot token scopes:
+   - `chat:write`, `chat:write.public`
+3. Click **Install to Workspace** — copy the **Bot User OAuth Token** (`xoxb-...`)
+4. Invite the bot to your channel: `/invite @your-bot-name`
 
-```bash
-esc env init <your-org>/strava-slack-bot/dev
-esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackBotToken xoxb-...
-esc env set <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackChannel my-channel
-```
+Put the token in `.env` as `SLACK_BOT_TOKEN`.
 
-Then reference it in `infra/Pulumi.dev.yaml`:
+## What gets deployed
 
-```yaml
-environment:
-  - strava-slack-bot/dev
-config:
-  aws:region: us-east-1
-```
-
-### Option B — plain config
-
-```bash
-cd infra
-pulumi config set slackChannel my-channel
-pulumi config set --secret slackBotToken xoxb-...
-```
-
-### Run
-
-```bash
-make deploy
-```
-
-Pulumi builds the Docker image, pushes it to ECR, and provisions everything (ECR repo, SQS queue + DLQ, IAM role, Lambda, event source mapping).
-
-## Test
-
-Send a fake Strava run to the queue:
-
-```bash
-make send
-```
-
-Watch the Lambda logs:
-
-```bash
-make logs
-```
+- **ECR** — container image repository
+- **SQS queue** — receives run events (with a dead-letter queue)
+- **Lambda** — processes events and posts to Slack
+- **IAM** — role with least-privilege SQS access
 
 ## SQS message shape
 
@@ -98,10 +61,25 @@ make logs
 }
 ```
 
-## Config reference
+## Using Pulumi ESC instead of .env
 
-| Key | Description |
-|-----|-------------|
-| `slackBotToken` | Slack bot token (`xoxb-...`) — keep secret |
-| `slackChannel` | Channel name to post to (without `#`) |
-| `aws:region` | AWS region (default `us-east-1`) |
+If you prefer to manage secrets in [Pulumi ESC](https://www.pulumi.com/docs/esc/), skip `make config` and set up an ESC environment instead:
+
+```bash
+esc env init <your-org>/strava-slack-bot/dev
+esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackBotToken xoxb-...
+esc env set <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackChannel your-channel
+```
+
+Then reference it in `infra/Pulumi.dev.yaml`:
+
+```yaml
+environment:
+  - strava-slack-bot/dev
+config:
+  aws:region: us-east-1
+```
+
+---
+
+*This repo is used live in the [Pulumi × New Relic live stream](https://www.pulumi.com). Adam posts to `#new-relic-demo` in the [Pulumi Community Slack](https://slack.pulumi.com).*

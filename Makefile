@@ -1,4 +1,13 @@
-.PHONY: deploy send logs
+.PHONY: config deploy send logs
+
+# Read .env and push values into Pulumi config (run once, or when token changes)
+config:
+	@test -f .env || (echo "Copy .env.sample to .env and fill in your values first"; exit 1)
+	@export $$(cat .env | xargs) && \
+		cd infra && \
+		pulumi config set --secret slackBotToken "$$SLACK_BOT_TOKEN" && \
+		pulumi config set slackChannel "$$SLACK_CHANNEL"
+	@echo "Config set. Run 'make deploy' to deploy."
 
 deploy:
 	cd infra && pulumi up
