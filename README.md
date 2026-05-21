@@ -1,11 +1,11 @@
 # strava-slack-bot
 
-Demo app for the Pulumi × New Relic live stream.
+![PulumiBot posting coaching feedback to Slack](docs/slack-demo.png)
 
-Strava-shaped run events arrive on SQS, a Lambda function processes them and posts a summary to Slack. Pulumi manages the infrastructure. New Relic instruments the Lambda.
+This app receives running data from your watch via a [Strava-to-SQS bridge](#setting-up-a-strava-to-sqs-bridge), feeds it to an LLM acting as a running coach, and posts the feedback to a Slack channel of your choice. Infrastructure is deployed to AWS Lambda using Pulumi, and New Relic instruments it for observability.
 
 ```
-SQS → Lambda (container) → Slack
+Strava → [webhook bridge] → SQS → Lambda (container) → Slack
 ```
 
 ## Prerequisites
@@ -114,6 +114,25 @@ config:
   aws:region: us-east-1
 ```
 
+## Setting up a Strava-to-SQS bridge
+
+This demo uses synthetic run events (`make send`), but to wire in real Strava data:
+
+1. Create a [Strava API application](https://developers.strava.com/docs/getting-started/) and subscribe to the webhook.
+2. Deploy a small HTTP endpoint (API Gateway + Lambda or a simple server) that receives the Strava webhook POST and forwards it to SQS.
+3. Point the webhook subscription at that endpoint.
+
+The SQS message format is documented in [SQS message shape](#sqs-message-shape).
+
+## Going further
+
+Things to try once the basic demo is working:
+
+- **Move to Fargate** — swap the Lambda for an ECS Fargate task to handle longer-running workloads and persistent connections.
+- **Try Google Cloud Run** — port the Pulumi program to GCP using `pulumi-gcp`; the container and app code stay the same.
+- **Wire a real Strava bridge** — set up the webhook integration above so your actual runs trigger the bot automatically.
+- **Add a New Relic custom dashboard** — instrument the Lambda to emit a custom event or metric (e.g. run distance, coaching latency) and build a NR dashboard that tracks your training over time.
+
 ---
 
-*This repo is used live in the [Pulumi × New Relic live stream](https://www.pulumi.com). Adam posts to `#new-relic-demo` in the [Pulumi Community Slack](https://slack.pulumi.com).*
+*This repo is used live in the [Pulumi × New Relic live stream](https://www.pulumi.com). Adam posts to `#test-pulumi-bot` in the [Pulumi Community Slack](https://slack.pulumi.com).*
