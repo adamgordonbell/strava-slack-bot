@@ -5,7 +5,8 @@ import pulumi_docker as docker
 
 config = pulumi.Config()
 slack_bot_token = config.require_secret("slackBotToken")
-slack_channel = config.get("slackChannel") or "#bot-testing"
+slack_channel = config.get("slackChannel") or "bot-testing"
+anthropic_api_key = config.require_secret("anthropicApiKey")
 
 # ECR repo
 repo = aws.ecr.Repository(
@@ -102,6 +103,7 @@ fn = aws.lambda_.Function(
         variables={
             "SLACK_BOT_TOKEN": slack_bot_token,
             "SLACK_CHANNEL": slack_channel,
+            "ANTHROPIC_API_KEY": anthropic_api_key,
         }
     ),
 )
