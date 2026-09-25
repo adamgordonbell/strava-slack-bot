@@ -129,6 +129,13 @@ if new_relic_enabled:
         "NEW_RELIC_AI_MONITORING_ENABLED": "true",
         # Ship function logs (the KeyError traceback) through the extension.
         "NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS": "true",
+        # Ship each invocation's telemetry at the end of that invocation. By
+        # default the extension batches agent payloads (3 per send) and holds
+        # the rest until the container's next invocation or shutdown, which
+        # makes a single `make send` invisible in New Relic for minutes.
+        "NEW_RELIC_EXTENSION_SYNCHRONOUS_FLUSH": "true",
+        "NEW_RELIC_EXTENSION_PIPELINE_FLUSH": "false",
+        "NEW_RELIC_RUNTIME_DONE_GRACE_MS": "1000",
     })
     if new_relic_debug:
         env_vars.update({
