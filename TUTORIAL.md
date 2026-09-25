@@ -1,6 +1,6 @@
 # Live stream walkthrough
 
-Point-form build-out for the Pulumi × New Relic live stream (Jun 24).
+Point-form build-out for the Pulumi × New Relic live stream (Oct 7).
 
 > **TODO:** Add step-by-step section walking through *building* the Pulumi infrastructure
 > from scratch — ECR repo, SQS + DLQ, IAM role, Lambda function, event source mapping.
@@ -14,7 +14,7 @@ Point-form build-out for the Pulumi × New Relic live stream (Jun 24).
 ## 1. Deploy
 
 ```bash
-cp .env.sample .env   # fill in SLACK_BOT_TOKEN, SLACK_CHANNEL, ANTHROPIC_API_KEY
+cp .env.sample .env   # fill in SLACK_BOT_TOKEN, SLACK_CHANNEL (+ NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID)
 make config           # push secrets into Pulumi config
 make deploy           # build container → ECR → Lambda + SQS
 ```

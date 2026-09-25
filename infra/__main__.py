@@ -6,7 +6,16 @@ import pulumi_docker as docker
 config = pulumi.Config()
 slack_bot_token = config.require_secret("slackBotToken")
 slack_channel = config.get("slackChannel") or "bot-testing"
-anthropic_api_key = config.require_secret("anthropicApiKey")
+bedrock_model_id = config.get("bedrockModelId") or "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+# New Relic is optional: leave newRelicLicenseKey unset and the function runs
+# un-instrumented. Set it (plus newRelicAccountId) and the Lambda boots through
+# New Relic's handler wrapper with AI monitoring on.
+new_relic_license_key = config.get_secret("newRelicLicenseKey")
+new_relic_account_id = config.get("newRelicAccountId")
+new_relic_enabled = new_relic_license_key is not None
+# `pulumi config set newRelicDebug true` for verbose extension + agent logs in CloudWatch.
+new_relic_debug = config.get_bool("newRelicDebug") or False
 
 # ECR repo
 repo = aws.ecr.Repository(
@@ -46,7 +55,7 @@ dlq = aws.sqs.Queue(
 queue = aws.sqs.Queue(
     "strava-slack-bot-queue",
     name="strava-slack-bot",
-    visibility_timeout_seconds=30,
+    visibility_timeout_seconds=60,
     redrive_policy=pulumi.Output.json_dumps({
         "deadLetterTargetArn": dlq.arn,
         "maxReceiveCount": 3,
@@ -89,6 +98,46 @@ aws.iam.RolePolicy(
     }),
 )
 
+# Claude on Bedrock. The cross-region inference profile can route to any US
+# region, so the resource has to stay open.
+aws.iam.RolePolicy(
+    "bedrock-invoke-policy",
+    role=lambda_role.name,
+    policy=json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+            "Resource": "*",
+        }],
+    }),
+)
+
+env_vars = {
+    "SLACK_BOT_TOKEN": slack_bot_token,
+    "SLACK_CHANNEL": slack_channel,
+    "BEDROCK_MODEL_ID": bedrock_model_id,
+}
+image_command = None
+if new_relic_enabled:
+    env_vars.update({
+        "NEW_RELIC_LICENSE_KEY": new_relic_license_key,
+        "NEW_RELIC_ACCOUNT_ID": new_relic_account_id or "",
+        # The wrapper imports this to find the real handler.
+        "NEW_RELIC_LAMBDA_HANDLER": "handler.handler",
+        # LLM traces for the Bedrock converse call (off by default in the agent).
+        "NEW_RELIC_AI_MONITORING_ENABLED": "true",
+        # Ship function logs (the KeyError traceback) through the extension.
+        "NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS": "true",
+    })
+    if new_relic_debug:
+        env_vars.update({
+            "NEW_RELIC_EXTENSION_LOG_LEVEL": "DEBUG",
+            "NEW_RELIC_EXTENSION_SEND_EXTENSION_LOGS": "true",
+            "NEW_RELIC_LOG_LEVEL": "debug",
+        })
+    image_command = ["newrelic_lambda_wrapper.handler"]
+
 # Lambda function — container image from ECR
 fn = aws.lambda_.Function(
     "strava-slack-bot",
@@ -97,14 +146,13 @@ fn = aws.lambda_.Function(
     image_uri=image.image_name,
     role=lambda_role.arn,
     architectures=["arm64"],
-    timeout=30,
-    memory_size=256,
-    environment=aws.lambda_.FunctionEnvironmentArgs(
-        variables={
-            "SLACK_BOT_TOKEN": slack_bot_token,
-            "SLACK_CHANNEL": slack_channel,
-            "ANTHROPIC_API_KEY": anthropic_api_key,
-        }
+    timeout=60,
+    memory_size=512,
+    environment=aws.lambda_.FunctionEnvironmentArgs(variables=env_vars),
+    image_config=(
+        aws.lambda_.FunctionImageConfigArgs(commands=image_command)
+        if image_command
+        else None
     ),
 )
 
@@ -120,3 +168,4 @@ pulumi.export("queue_url", queue.url)
 pulumi.export("dlq_url", dlq.url)
 pulumi.export("ecr_repo", repo.repository_url)
 pulumi.export("lambda_name", fn.name)
+pulumi.export("new_relic_enabled", new_relic_enabled)

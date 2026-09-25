@@ -2,7 +2,7 @@
 
 ![PulumiBot posting coaching feedback to Slack](docs/slack-demo.png)
 
-Get AI coaching feedback on every run, posted to Slack automatically. Each run syncs from Strava via a webhook bridge into SQS, a Lambda function calls Claude to generate a short coaching note, and the result lands in a channel of your choice. Pulumi manages the infrastructure; New Relic instruments it for observability.
+Get AI coaching feedback on every run, posted to Slack automatically. Each run syncs from Strava via a webhook bridge into SQS, a Lambda function calls Claude on Amazon Bedrock to generate a short coaching note, and the result lands in a channel of your choice. Pulumi manages the infrastructure; New Relic instruments it for observability.
 
 ```
 Strava → [webhook bridge] → SQS → Lambda (container) → Slack
@@ -16,7 +16,7 @@ Strava → [webhook bridge] → SQS → Lambda (container) → Slack
 
 - [Pulumi CLI](https://www.pulumi.com/docs/install/)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- AWS credentials configured
+- AWS credentials configured, with Bedrock access to Claude Haiku 4.5 enabled in the account
 - Docker
 - A Slack bot token — see [Setting up the Slack bot](#setting-up-the-slack-bot)
 
@@ -24,7 +24,8 @@ Strava → [webhook bridge] → SQS → Lambda (container) → Slack
 
 ```bash
 cp .env.sample .env
-# fill in SLACK_BOT_TOKEN, SLACK_CHANNEL, and ANTHROPIC_API_KEY in .env
+# fill in SLACK_BOT_TOKEN and SLACK_CHANNEL in .env
+# optional: NEW_RELIC_LICENSE_KEY + NEW_RELIC_ACCOUNT_ID to turn on New Relic
 
 make config    # pushes .env values into Pulumi config
 make deploy    # builds container, pushes to ECR, provisions everything
@@ -76,7 +77,9 @@ If you prefer to manage secrets in [Pulumi ESC](https://www.pulumi.com/docs/esc/
 esc env init <your-org>/strava-slack-bot/dev
 esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackBotToken xoxb-...
 esc env set <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:slackChannel your-channel
-esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:anthropicApiKey sk-ant-...
+# optional — turns on the New Relic wrapper, AI monitoring, and log forwarding
+esc env set --secret <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:newRelicLicenseKey <ingest-licence-key>
+esc env set <your-org>/strava-slack-bot/dev pulumiConfig.strava-slack-bot:newRelicAccountId <account-id>
 ```
 
 Then reference it in `infra/Pulumi.dev.yaml`:
@@ -85,8 +88,17 @@ Then reference it in `infra/Pulumi.dev.yaml`:
 environment:
   - strava-slack-bot/dev
 config:
-  aws:region: us-east-1
+  aws:region: ca-central-1
 ```
+
+## New Relic
+
+The container image bakes in New Relic's Lambda layer (Python agent, handler wrapper, and the
+Lambda extension) from `public.ecr.aws/newrelic-lambda-layers-for-docker`. Nothing runs until
+`newRelicLicenseKey` is set in Pulumi config; then the function boots through
+`newrelic_lambda_wrapper.handler`, AI monitoring captures the Bedrock `converse` call as an LLM
+trace, and the extension forwards function logs. Optional config: `bedrockModelId` (default
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`).
 
 ## Setting up a Strava-to-SQS bridge
 

@@ -2,9 +2,16 @@ import json
 import os
 import urllib.request
 
+import boto3
+
 SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL", "bot-testing")
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+BEDROCK_MODEL_ID = os.environ.get(
+    "BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+)
+BEDROCK_REGION = os.environ.get("BEDROCK_REGION") or os.environ.get("AWS_REGION", "ca-central-1")
+
+bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
 
 def coaching_feedback(activity: dict) -> str:
@@ -36,24 +43,14 @@ Run: {run_type}, {distance}km in {duration} min ({pace_str}/km avg)
 
 Give brief coaching feedback."""
 
-    payload = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 150,
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
+    # Claude on Amazon Bedrock via the Converse API. New Relic's Python agent
+    # instruments this call, so it shows up as an LLM trace (AI monitoring).
+    resp = bedrock.converse(
+        modelId=BEDROCK_MODEL_ID,
+        messages=[{"role": "user", "content": [{"text": prompt}]}],
+        inferenceConfig={"maxTokens": 150},
     )
-    with urllib.request.urlopen(req) as resp:
-        body = json.loads(resp.read())
-        return body["content"][0]["text"].strip()
+    return resp["output"]["message"]["content"][0]["text"].strip()
 
 
 def format_header(activity: dict) -> str:

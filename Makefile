@@ -12,11 +12,14 @@ config:
 		cd infra && \
 		pulumi config set --secret slackBotToken "$$SLACK_BOT_TOKEN" && \
 		pulumi config set slackChannel "$$SLACK_CHANNEL" && \
-		pulumi config set --secret anthropicApiKey "$$ANTHROPIC_API_KEY"
+		if [ -n "$$NEW_RELIC_LICENSE_KEY" ]; then \
+			pulumi config set --secret newRelicLicenseKey "$$NEW_RELIC_LICENSE_KEY" && \
+			pulumi config set newRelicAccountId "$$NEW_RELIC_ACCOUNT_ID"; \
+		fi
 	@echo "Config set. Run 'make deploy' to deploy."
 
 deploy:
-	cd infra && pulumi up
+	cd infra && pulumi up --yes
 
 # Send a single run event (TYPE=easy|long|tempo, default easy)
 send:
