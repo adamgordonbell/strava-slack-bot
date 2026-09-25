@@ -1,4 +1,4 @@
-.PHONY: config deploy send send-bad flood-bad redrive logs
+.PHONY: config deploy send send-bad flood-bad redrive logs nr-check
 
 REGION    ?= ca-central-1
 QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
@@ -45,3 +45,7 @@ redrive:
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow
+
+# What New Relic has seen in the last hour (needs NEW_RELIC_USER_API_KEY + NEW_RELIC_ACCOUNT_ID)
+nr-check:
+	python3 scripts/nr_check.py "$${SINCE:-1 hour ago}"

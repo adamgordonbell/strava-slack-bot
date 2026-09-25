@@ -31,6 +31,7 @@ make config    # pushes .env values into Pulumi config
 make deploy    # builds container, pushes to ECR, provisions everything
 make send      # sends a test run event (TYPE=easy|long|tempo, default easy)
 make logs      # tail Lambda logs
+make nr-check  # what New Relic has seen in the last hour (needs NEW_RELIC_USER_API_KEY + NEW_RELIC_ACCOUNT_ID)
 ```
 
 ## Setting up the Slack bot
@@ -98,7 +99,10 @@ Lambda extension) from `public.ecr.aws/newrelic-lambda-layers-for-docker`. Nothi
 `newRelicLicenseKey` is set in Pulumi config; then the function boots through
 `newrelic_lambda_wrapper.handler`, AI monitoring captures the Bedrock `converse` call as an LLM
 trace, and the extension forwards function logs. Optional config: `bedrockModelId` (default
-`us.anthropic.claude-haiku-4-5-20251001-v1:0`).
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`). `pulumi config set newRelicDebug true` adds extension and
+agent debug logs to CloudWatch. `make nr-check` queries NerdGraph for invocation, error, LLM and log
+counts so you can confirm data arrived without opening the UI; it wants a **User** key (`NRAK-…`) in
+`NEW_RELIC_USER_API_KEY`, which is separate from the ingest licence key the Lambda uses.
 
 ## Setting up a Strava-to-SQS bridge
 
