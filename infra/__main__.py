@@ -2,6 +2,7 @@ import json
 import pulumi
 import pulumi_aws as aws
 import pulumi_docker as docker
+import pulumi_newrelic as newrelic
 
 config = pulumi.Config()
 slack_bot_token = config.require_secret("slackBotToken")
@@ -125,6 +126,10 @@ if new_relic_enabled:
         "NEW_RELIC_ACCOUNT_ID": new_relic_account_id or "",
         # The wrapper imports this to find the real handler.
         "NEW_RELIC_LAMBDA_HANDLER": "handler.handler",
+        # Report as an APM service (transactions, errors, AI Monitoring) rather
+        # than only the older serverless view.
+        "NEW_RELIC_APM_LAMBDA_MODE": "true",
+        "NEW_RELIC_APP_NAME": "strava-slack-bot",
         # LLM traces for the Bedrock converse call (off by default in the agent).
         "NEW_RELIC_AI_MONITORING_ENABLED": "true",
         # Ship function logs (the KeyError traceback) through the extension.
@@ -170,6 +175,76 @@ aws.lambda_.EventSourceMapping(
     function_name=fn.name,
     batch_size=1,
 )
+
+# Link the AWS account to New Relic. Without the link the Lambda's telemetry
+# lands (NRQL, Logs) but no Lambda entity is synthesized, so APM & Services,
+# Serverless, Errors Inbox and AI Monitoring all show nothing. Needs a New
+# Relic User key: `pulumi config set --secret newRelicApiKey NRAK-...`.
+new_relic_api_key = config.get_secret("newRelicApiKey")
+if new_relic_enabled and new_relic_api_key is not None:
+    nr = newrelic.Provider(
+        "newrelic",
+        api_key=new_relic_api_key,
+        account_id=new_relic_account_id,
+        region="US",
+    )
+
+    # New Relic polls from its own AWS account (754728514883), scoped by an
+    # external ID equal to the New Relic account ID.
+    nr_role = aws.iam.Role(
+        "newrelic-integration-role",
+        assume_role_policy=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"AWS": "arn:aws:iam::754728514883:root"},
+                "Action": "sts:AssumeRole",
+                "Condition": {"StringEquals": {"sts:ExternalId": new_relic_account_id}},
+            }],
+        }),
+    )
+
+    nr_policy = aws.iam.RolePolicy(
+        "newrelic-lambda-read",
+        role=nr_role.name,
+        policy=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:GetAccountSettings",
+                    "lambda:ListFunctions",
+                    "lambda:ListAliases",
+                    "lambda:ListTags",
+                    "lambda:ListEventSourceMappings",
+                    "cloudwatch:GetMetricData",
+                    "cloudwatch:GetMetricStatistics",
+                    "cloudwatch:ListMetrics",
+                    "tag:GetResources",
+                    "iam:ListAccountAliases",
+                ],
+                "Resource": "*",
+            }],
+        }),
+    )
+
+    link = newrelic.cloud.AwsLinkAccount(
+        "aws-link",
+        arn=nr_role.arn,
+        metric_collection_mode="PULL",
+        name="strava-slack-bot",
+        opts=pulumi.ResourceOptions(provider=nr, depends_on=[nr_policy]),
+    )
+
+    newrelic.cloud.AwsIntegrations(
+        "aws-integrations",
+        linked_account_id=link.id,
+        lambda_=newrelic.cloud.AwsIntegrationsLambdaArgs(
+            aws_regions=[aws.get_region().region],
+            metrics_polling_interval=300,
+        ),
+        opts=pulumi.ResourceOptions(provider=nr),
+    )
 
 pulumi.export("queue_url", queue.url)
 pulumi.export("dlq_url", dlq.url)

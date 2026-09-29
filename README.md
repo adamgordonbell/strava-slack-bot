@@ -104,6 +104,14 @@ agent debug logs to CloudWatch. `make nr-check` queries NerdGraph for invocation
 counts so you can confirm data arrived without opening the UI; it wants a **User** key (`NRAK-…`) in
 `NEW_RELIC_USER_API_KEY`, which is separate from the ingest licence key the Lambda uses.
 
+Set that same User key as `newRelicApiKey` (`pulumi config set --secret newRelicApiKey NRAK-…`) and
+`pulumi up` also links the AWS account to New Relic: an IAM role New Relic assumes, plus the Lambda
+polling integration. Without the link the telemetry still lands in NRQL and Logs, but New Relic never
+creates a Lambda entity, so APM & Services, Serverless functions, Errors Inbox and AI Monitoring stay
+empty. The entity appears within a polling cycle (about five minutes) of the first invocation.
+The function also runs in New Relic's APM mode (`NEW_RELIC_APM_LAMBDA_MODE`), so it shows up as the
+`strava-slack-bot` service under APM & Services, and AI Monitoring picks up the Bedrock calls.
+
 ## Setting up a Strava-to-SQS bridge
 
 This demo uses synthetic run events (`make send`), but to wire in real Strava data:
