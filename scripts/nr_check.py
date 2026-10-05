@@ -34,7 +34,13 @@ def one(q: str, field: str):
 
 
 print(f"New Relic account {ACCOUNT}, since {SINCE}")
-print(f"  Lambda invocations : {one(f'SELECT count(*) FROM AwsLambdaInvocation SINCE {SINCE}', 'count')}")
+# APM mode (NEW_RELIC_APM_LAMBDA_MODE) reports Transaction/TransactionError;
+# the older serverless mode reports AwsLambdaInvocation/AwsLambdaInvocationError.
+print(f"  Transactions (APM) : {one(f'SELECT count(*) FROM Transaction SINCE {SINCE}', 'count')}")
+print(f"  Txn errors (APM)   : {one(f'SELECT count(*) FROM TransactionError SINCE {SINCE}', 'count')}")
+for row in nrql(f"SELECT count(*) FROM TransactionError FACET error.class, error.message SINCE {SINCE}"):
+    print(f"      {row.get('count')} x {row.get('error.class')}: {row.get('error.message')}")
+print(f"  Lambda invocations : {one(f'SELECT count(*) FROM AwsLambdaInvocation SINCE {SINCE}', 'count')}  (serverless mode)")
 print(f"  Lambda errors      : {one(f'SELECT count(*) FROM AwsLambdaInvocationError SINCE {SINCE}', 'count')}")
 for row in nrql(f"SELECT count(*) FROM AwsLambdaInvocationError FACET error.class, error.message SINCE {SINCE}"):
     print(f"      {row['count']:>3} × {row['facet'][0]}: {row['facet'][1]}")
