@@ -51,6 +51,14 @@ Put the token in `.env` as `SLACK_BOT_TOKEN`.
 - **Lambda** — processes events and posts to Slack
 - **IAM** — role with least-privilege SQS access
 
+Every taggable resource carries an `Owner` tag from `aws:defaultTags` in `infra/Pulumi.dev.yaml`.
+Shared demo accounts often run a cleanup job that deletes untagged resources; set the tag to your
+own email before deploying into one:
+
+```bash
+cd infra && pulumi config set --path 'aws:defaultTags.tags.Owner' you@example.com
+```
+
 ## SQS message shape
 
 ```json

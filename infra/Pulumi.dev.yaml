@@ -2,3 +2,6 @@ environment:
   - strava-slack-bot/dev
 config:
   aws:region: ca-central-1
+  aws:defaultTags:
+    tags:
+      Owner: v-adam@pulumi.com
