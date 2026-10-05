@@ -174,6 +174,9 @@ aws.lambda_.EventSourceMapping(
     event_source_arn=queue.arn,
     function_name=fn.name,
     batch_size=1,
+    # Pinned: AWS flips a mapping to Disabled if the function disappears
+    # underneath it, and an unset `enabled` would leave it that way.
+    enabled=True,
 )
 
 # Link the AWS account to New Relic. Without the link the Lambda's telemetry
