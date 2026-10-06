@@ -56,7 +56,9 @@ dlq = aws.sqs.Queue(
 queue = aws.sqs.Queue(
     "strava-slack-bot-queue",
     name="strava-slack-bot",
-    visibility_timeout_seconds=60,
+    # Short so a bad message burns its 3 tries in ~45 s on stream. Must be >= the
+    # Lambda timeout below.
+    visibility_timeout_seconds=15,
     redrive_policy=pulumi.Output.json_dumps({
         "deadLetterTargetArn": dlq.arn,
         "maxReceiveCount": 3,
@@ -160,7 +162,7 @@ fn = aws.lambda_.Function(
     image_uri=image.repo_digest,
     role=lambda_role.arn,
     architectures=["arm64"],
-    timeout=60,
+    timeout=15,  # runs take 2-5 s; keeps the retry cycle (visibility timeout) short
     memory_size=512,
     environment=aws.lambda_.FunctionEnvironmentArgs(variables=env_vars),
     image_config=(
