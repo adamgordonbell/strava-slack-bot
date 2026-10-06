@@ -1,7 +1,8 @@
-.PHONY: config deploy send send-bad flood-bad flush trigger trigger-url redrive logs nr-check
+.PHONY: config deploy send send-bad flood-bad flush trigger trigger-url redrive logs status watch nr-check
 
 REGION    ?= ca-central-1
 QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
+DLQ_URL    = $(shell cd infra && pulumi stack output dlq_url)
 TRIGGER_URL = $(shell cd infra && pulumi stack output trigger_url)
 TRIGGER_KEY = $(shell cd infra && pulumi config get triggerKey)
 DLQ_ARN    = $(shell cd infra && pulumi stack output dlq_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
@@ -47,6 +48,14 @@ redrive:
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow
+
+# Queue depth, DLQ depth, invocations and errors from AWS alone (MIN=15 by default).
+status:
+	@uv run scripts/status.py $(QUEUE_URL) $(DLQ_URL) $${MIN:-15}
+
+# Same, refreshing every 5 s. Leave it running during the flood.
+watch:
+	@uv run scripts/status.py $(QUEUE_URL) $(DLQ_URL) $${MIN:-15} --watch
 
 # Same as `make send` / `make flush`, but over HTTP through the trigger function
 # URL (TYPE=easy|long|tempo|bad|flush). This is what a guest without AWS access uses.
