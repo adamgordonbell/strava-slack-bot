@@ -155,7 +155,9 @@ fn = aws.lambda_.Function(
     "strava-slack-bot",
     name="strava-slack-bot",
     package_type="Image",
-    image_uri=image.image_name,
+    # The digest, not the :latest tag: a new build changes the digest, so Pulumi
+    # updates the function. Pointing at :latest leaves the old code running.
+    image_uri=image.repo_digest,
     role=lambda_role.arn,
     architectures=["arm64"],
     timeout=60,

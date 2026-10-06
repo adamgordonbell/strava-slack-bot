@@ -39,7 +39,7 @@ print(f"New Relic account {ACCOUNT}, since {SINCE}")
 print(f"  Transactions (APM) : {one(f'SELECT count(*) FROM Transaction SINCE {SINCE}', 'count')}")
 print(f"  Txn errors (APM)   : {one(f'SELECT count(*) FROM TransactionError SINCE {SINCE}', 'count')}")
 for row in nrql(f"SELECT count(*) FROM TransactionError FACET error.class, error.message SINCE {SINCE}"):
-    print(f"      {row.get('count')} x {row.get('error.class')}: {row.get('error.message')}")
+    print(f"      {row['count']:>3} × {row['facet'][0]}: {row['facet'][1]}")
 print(f"  Lambda invocations : {one(f'SELECT count(*) FROM AwsLambdaInvocation SINCE {SINCE}', 'count')}  (serverless mode)")
 print(f"  Lambda errors      : {one(f'SELECT count(*) FROM AwsLambdaInvocationError SINCE {SINCE}', 'count')}")
 for row in nrql(f"SELECT count(*) FROM AwsLambdaInvocationError FACET error.class, error.message SINCE {SINCE}"):
