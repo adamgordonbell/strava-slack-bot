@@ -13,11 +13,19 @@ Point-form build-out for the Pulumi × New Relic live stream (Oct 7).
 
 ## 1. Deploy
 
+Secrets live in the Pulumi ESC environment `strava-slack-bot/dev`, which the stack imports.
+
 ```bash
-cp .env.sample .env   # fill in SLACK_BOT_TOKEN, SLACK_CHANNEL (+ NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID)
-make config           # push secrets into Pulumi config
-make deploy           # build container → ECR → Lambda + SQS
+cd infra
+pulumi config            # stack config, with the ESC values merged in (secrets masked)
+pulumi preview           # what would change
+pulumi up                # build container → ECR → Lambda + SQS + DLQ
+pulumi stack output      # queue URL, DLQ URL, trigger URL
+cd ..
 ```
+
+`make` targets below are helper scripts for sending test events; everything Pulumi does is
+shown as the plain `pulumi` command.
 
 ## 2. Send a run
 
@@ -56,9 +64,9 @@ if "activity" not in body:
 ## 6. Redeploy + redrive
 
 ```bash
-make deploy    # rebuild and push fixed container
-make redrive   # move DLQ messages back to main queue
-make logs      # watch them succeed
+cd infra && pulumi up && cd ..   # preview shows the image + Lambda changing; confirm
+make redrive                     # move DLQ messages back to main queue
+make logs                        # watch them succeed (Ctrl-C to stop)
 ```
 
 New Relic error rate returns to zero. DLQ drains.
