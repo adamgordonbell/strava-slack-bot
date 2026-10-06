@@ -1,0 +1,46 @@
+@startuml
+skinparam backgroundColor white
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam dpi 200
+skinparam nodesep 45
+skinparam ranksep 45
+skinparam rectangle {
+  FontStyle bold
+  FontSize 15
+}
+skinparam queue {
+  FontStyle bold
+  FontSize 15
+}
+skinparam frame {
+  FontSize 13
+  BorderColor #888888
+  FontColor #555555
+}
+
+rectangle "Strava" as strava #FC4C02;text:white
+rectangle "make send /\ntrigger URL" as send #555555;text:white
+
+frame "Pulumi stack (AWS, ca-central-1)" {
+  queue "SQS queue" as sqs #E7157B;text:white
+  queue "Dead-letter\nqueue" as dlq #8C1D40;text:white
+  rectangle "Lambda\n(container +\nNew Relic layer)" as lambda #FF9900;text:white
+  rectangle "Claude Haiku\non Bedrock" as bedrock #01A88D;text:white
+}
+
+rectangle "Slack" as slack #4A154B;text:white
+rectangle "New Relic" as nr #1CE783;text:black
+
+strava -down-> sqs : "webhook\n(bridge, not wired)"
+send -down-> sqs : "fake runs"
+sqs -down-> lambda : "run event"
+sqs -right-> dlq : "after 3\nfailed tries"
+lambda -right-> bedrock : "coach me"
+lambda -down-> slack : "post feedback"
+lambda -down-> nr : "traces, errors,\nlogs, LLM calls"
+
+strava -[hidden]right-> send
+@enduml
