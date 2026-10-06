@@ -1,7 +1,9 @@
-.PHONY: config deploy send send-bad flood-bad flush redrive logs nr-check
+.PHONY: config deploy send send-bad flood-bad flush trigger trigger-url redrive logs nr-check
 
 REGION    ?= ca-central-1
 QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
+TRIGGER_URL = $(shell cd infra && pulumi stack output trigger_url)
+TRIGGER_KEY = $(shell cd infra && pulumi config get triggerKey)
 DLQ_ARN    = $(shell cd infra && pulumi stack output dlq_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
 QUEUE_ARN  = $(shell cd infra && pulumi stack output queue_url | sed 's|https://sqs.\([^.]*\).amazonaws.com/\([^/]*\)/\(.*\)|arn:aws:sqs:\1:\2:\3|')
 
@@ -45,6 +47,15 @@ redrive:
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow
+
+# Same as `make send` / `make flush`, but over HTTP through the trigger function
+# URL (TYPE=easy|long|tempo|bad|flush). This is what a guest without AWS access uses.
+trigger:
+	@curl -s -H "x-trigger-key: $(TRIGGER_KEY)" "$(TRIGGER_URL)?type=$(TYPE)"
+
+# Print the curl line to hand to a guest (includes the key: share privately).
+trigger-url:
+	@echo 'curl -H "x-trigger-key: $(TRIGGER_KEY)" "$(TRIGGER_URL)?type=easy"   # easy | long | tempo | bad | flush'
 
 # Push the last invocation's telemetry to New Relic. In APM mode the extension
 # only sends a payload when the *next* invocation starts (or at shutdown), so a

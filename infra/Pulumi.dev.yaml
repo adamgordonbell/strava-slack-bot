@@ -6,3 +6,5 @@ config:
     tags:
       Owner: v-adam@pulumi.com
   strava-slack-bot:newRelicDebug: "false"
+  strava-slack-bot:triggerKey:
+    secure: AAABABbmOXVS3ubX14qBIKh503CjbObYLvn19Le6t3KOtcnPtREd0mYk00WFUSFdSlQT7VBmPYmN09bA+0k6mw==

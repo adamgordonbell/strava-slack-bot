@@ -126,6 +126,17 @@ empty. The entity appears within a polling cycle (about five minutes) of the fir
 The function also runs in New Relic's APM mode (`NEW_RELIC_APM_LAMBDA_MODE`), so it shows up as the
 `strava-slack-bot` service under APM & Services, and AI Monitoring picks up the Bedrock calls.
 
+## Letting someone else trigger runs
+
+A small second Lambda with a function URL drops runs onto the queue over HTTP, so a guest
+without AWS access can generate data. It is gated by a shared key:
+
+```bash
+cd infra && pulumi config set --secret triggerKey $(openssl rand -hex 16) && pulumi up
+make trigger TYPE=bad      # same as make send, over HTTP (easy | long | tempo | bad | flush)
+make trigger-url           # prints the curl line to share privately
+```
+
 ## Setting up a Strava-to-SQS bridge
 
 This demo uses synthetic run events (`make send`), but to wire in real Strava data:

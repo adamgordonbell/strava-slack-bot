@@ -179,6 +179,59 @@ aws.lambda_.EventSourceMapping(
     enabled=True,
 )
 
+# HTTP trigger: a function URL that drops runs onto the queue (or flushes New
+# Relic) so a guest can generate data with curl. Gated by a shared key:
+# `pulumi config set --secret triggerKey $(openssl rand -hex 16)`.
+trigger_key = config.require_secret("triggerKey")
+
+trigger_role = aws.iam.Role(
+    "trigger-role",
+    assume_role_policy=json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Principal": {"Service": "lambda.amazonaws.com"},
+            "Effect": "Allow",
+        }],
+    }),
+)
+aws.iam.RolePolicyAttachment(
+    "trigger-basic-execution",
+    role=trigger_role.name,
+    policy_arn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+)
+aws.iam.RolePolicy(
+    "trigger-policy",
+    role=trigger_role.name,
+    policy=pulumi.Output.json_dumps({
+        "Version": "2012-10-17",
+        "Statement": [
+            {"Effect": "Allow", "Action": "sqs:SendMessage", "Resource": queue.arn},
+            {"Effect": "Allow", "Action": "lambda:InvokeFunction", "Resource": fn.arn},
+        ],
+    }),
+)
+trigger_fn = aws.lambda_.Function(
+    "strava-slack-bot-trigger",
+    name="strava-slack-bot-trigger",
+    runtime="python3.13",
+    handler="handler.handler",
+    code=pulumi.FileArchive("../trigger"),
+    role=trigger_role.arn,
+    architectures=["arm64"],
+    timeout=10,
+    environment=aws.lambda_.FunctionEnvironmentArgs(variables={
+        "QUEUE_URL": queue.url,
+        "TARGET_FUNCTION": fn.name,
+        "TRIGGER_KEY": trigger_key,
+    }),
+)
+trigger_url = aws.lambda_.FunctionUrl(
+    "trigger-url",
+    function_name=trigger_fn.name,
+    authorization_type="NONE",
+)
+
 # Link the AWS account to New Relic. Without the link the Lambda's telemetry
 # lands (NRQL, Logs) but no Lambda entity is synthesized, so APM & Services,
 # Serverless, Errors Inbox and AI Monitoring all show nothing. Needs a New
@@ -253,4 +306,5 @@ pulumi.export("queue_url", queue.url)
 pulumi.export("dlq_url", dlq.url)
 pulumi.export("ecr_repo", repo.repository_url)
 pulumi.export("lambda_name", fn.name)
+pulumi.export("trigger_url", trigger_url.function_url)
 pulumi.export("new_relic_enabled", new_relic_enabled)
