@@ -5,3 +5,4 @@ config:
   aws:defaultTags:
     tags:
       Owner: v-adam@pulumi.com
+  strava-slack-bot:newRelicDebug: "false"

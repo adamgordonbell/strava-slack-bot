@@ -1,4 +1,4 @@
-.PHONY: config deploy send send-bad flood-bad redrive logs nr-check
+.PHONY: config deploy send send-bad flood-bad flush redrive logs nr-check
 
 REGION    ?= ca-central-1
 QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
@@ -45,6 +45,13 @@ redrive:
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow
+
+# Push the last invocation's telemetry to New Relic. In APM mode the extension
+# only sends a payload when the *next* invocation starts (or at shutdown), so a
+# lone `make send` is invisible until something else runs. This is that something.
+flush:
+	@aws lambda invoke --region $(REGION) --function-name strava-slack-bot \
+		--invocation-type Event --payload '{}' /dev/null >/dev/null && echo "Flushed"
 
 # What New Relic has seen in the last hour (needs NEW_RELIC_USER_API_KEY + NEW_RELIC_ACCOUNT_ID)
 nr-check:

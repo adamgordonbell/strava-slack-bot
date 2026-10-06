@@ -106,7 +106,13 @@ The container image bakes in New Relic's Lambda layer (Python agent, handler wra
 Lambda extension) from `public.ecr.aws/newrelic-lambda-layers-for-docker`. Nothing runs until
 `newRelicLicenseKey` is set in Pulumi config; then the function boots through
 `newrelic_lambda_wrapper.handler`, AI monitoring captures the Bedrock `converse` call as an LLM
-trace, and the extension forwards function logs. Optional config: `bedrockModelId` (default
+trace, and the extension forwards function logs.
+
+One quirk of APM mode: the extension only ships an invocation's telemetry when the *next*
+invocation starts (or when the container shuts down), so a single `make send` is invisible in
+New Relic until something else runs. `make flush` sends an empty direct invoke that the handler
+ignores, which pushes the previous run's data out within a few seconds. Bursts like
+`make flood-bad` don't need it. Optional config: `bedrockModelId` (default
 `us.anthropic.claude-haiku-4-5-20251001-v1:0`). `pulumi config set newRelicDebug true` adds extension and
 agent debug logs to CloudWatch. `make nr-check` queries NerdGraph for invocation, error, LLM and log
 counts so you can confirm data arrived without opening the UI; it wants a **User** key (`NRAK-…`) in

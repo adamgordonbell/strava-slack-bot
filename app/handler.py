@@ -87,6 +87,16 @@ def post_to_slack(text: str) -> None:
 
 
 def handler(event, context):
+    if "Records" not in event:
+        # `make flush`: an empty direct invoke. New Relic's extension only ships
+        # the previous invocation's telemetry when the next one starts, so this
+        # nudges it out. Keep the ping itself out of New Relic.
+        try:
+            import newrelic.agent
+            newrelic.agent.ignore_transaction()
+        except ImportError:
+            pass
+        return {"statusCode": 204}
     for record in event.get("Records", []):
         body = json.loads(record["body"])
         activity = body["activity"]
