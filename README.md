@@ -33,6 +33,7 @@ make send      # sends a test run event (TYPE=easy|long|tempo, default easy)
 make logs      # tail Lambda logs
 make status    # queue + DLQ depth, invocations, errors (AWS only, no New Relic)
 make watch     # same, refreshing every 5 s
+make clear     # purge the DLQ and the queue to reset the demo
 make nr-check  # what New Relic has seen in the last hour (needs NEW_RELIC_USER_API_KEY + NEW_RELIC_ACCOUNT_ID)
 ```
 

@@ -1,4 +1,4 @@
-.PHONY: config deploy send send-bad flood-bad flush trigger trigger-url redrive logs status watch nr-check
+.PHONY: config deploy send send-bad flood-bad flush trigger trigger-url redrive clear logs status watch nr-check
 
 REGION    ?= ca-central-1
 QUEUE_URL  = $(shell cd infra && pulumi stack output queue_url)
@@ -48,6 +48,12 @@ redrive:
 
 logs:
 	aws logs tail /aws/lambda/strava-slack-bot --region $(REGION) --follow
+
+# Empty the DLQ (and anything stuck in the main queue) to reset the demo.
+# AWS can take up to 60 s to finish a purge.
+clear:
+	@aws sqs purge-queue --region $(REGION) --queue-url $(DLQ_URL) && echo "DLQ purged"
+	@aws sqs purge-queue --region $(REGION) --queue-url $(QUEUE_URL) && echo "Queue purged"
 
 # Queue depth, DLQ depth, invocations and errors from AWS alone (MIN=15 by default).
 status:
