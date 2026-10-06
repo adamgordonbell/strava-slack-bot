@@ -70,3 +70,12 @@ make logs                        # watch them succeed (Ctrl-C to stop)
 ```
 
 New Relic error rate returns to zero. DLQ drains.
+
+## 7. Reset for the next run
+
+```bash
+git checkout app/handler.py          # take the guard back out
+cd infra && pulumi up && cd ..       # redeploy the unguarded handler
+make clear                           # purge the DLQ and the queue (AWS takes up to 60 s)
+make status                          # queue 0, DLQ 0
+```
